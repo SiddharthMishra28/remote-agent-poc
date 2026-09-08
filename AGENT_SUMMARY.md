@@ -2,116 +2,94 @@
 
 ## What changed and why
 
-This was a **documentation-quality pass** over the recently hardened
-`tasking` package (v0.2.0). No source code was modified — the goal was to
-read `tasking/manager.py` and `tests/` carefully, then rewrite the docs so
-that every claim matches actual, executed behavior.
+This was a **feature pass**: add `TaskManager.clear_completed()` to
+`tasking/manager.py`, plus focused tests, a changelog entry and README
+documentation. The method removes every task whose `done` status is `True`
+and returns the removed `Task` objects in insertion order; when nothing is
+completed it returns `[]` and mutates nothing. Pending tasks are untouched
+and keep their ids; the internal id counter is not reset (new tasks continue
+the monotonic sequence, consistent with `remove()`'s existing behavior).
 
-1. **`README.md` — rewritten** as proper project documentation:
-   - Concise intro (what it is: tiny, dependency-free, in-memory).
-   - Installation section, honest about the packaging reality (no
-     `pyproject.toml`/`setup.py`, so the package is imported from the repo
-     root, not pip-installed).
-   - Usage section with a realistic worked example: multiple tasks with due
-     dates, tags and priorities, an overdue check, `complete()`, `search()`,
-     `by_priority()`, `remove()` and the resulting `TaskNotFoundError`.
-   - Full API reference tables for `TaskManager` and `Task`
-     (method / signature / description / raises), plus the `Task` fields and
-     the `TaskNotFoundError` exception.
-   - Error-handling section with exact, verified messages for
-     `TaskNotFoundError`, `ValueError` and `TypeError`.
-   - Development/testing instructions and a changelog section for the
-     v0.2.0 hardening.
-   - Kept under the 150-line repository limit (147 lines).
-2. **`docs/USAGE.md` — new** extended usage guide with edge cases:
-   duplicate tags (including the after-stripping and case-sensitivity
-   nuances), invalid dates (all seven rejected formats, plus type errors),
-   empty/whitespace titles, priorities, search semantics, removal and id
-   continuity, `to_dict()` serialization, and a final "edge cases worth
-   knowing" section (e.g. `is_overdue()` ignores `done`; direct `Task()`
-   construction bypasses validation; `datetime.datetime` due dates are
-   accepted but break `is_overdue()`).
-3. **Verification-first**: every example and every error message in both
-   documents was executed with `python3` before being written down (see
-   "How to verify").
+Design notes:
+
+- Implemented in the existing API style: short one-liner docstring, typed
+  signature (`-> list`), no external dependencies, no changes to any
+  existing method, class or exception.
+- Removal is a single pass: collect completed tasks in insertion order
+  (dicts preserve insertion order in Python 3.7+), then delete by id. This
+  guarantees the returned list is ordered by insertion and that `all()` /
+  `pending()` keep their relative order for surviving tasks.
+- `clear_completed()` never raises: unknown-id handling does not apply
+  because it takes no arguments.
 
 ## Files added/modified
 
 | File | Change |
 |------|--------|
-| `README.md` | Rewritten: intro, installation, worked example, API reference tables, error handling, dev/testing, v0.2.0 changelog |
-| `docs/USAGE.md` | New: extended examples and edge cases, all verified |
-| `AGENT_SUMMARY.md` | This file (replaces the previous hardening summary; that content is now reflected in the README changelog) |
+| `tasking/manager.py` | Added `clear_completed()` to `TaskManager` (9 lines, between `complete()` and `all()`) |
+| `tests/test_clear_completed.py` | New: 9 focused tests — several completed removed; mixed completed/pending; empty manager; no-completed mutates nothing; pending survive with ids intact; insertion-order return; idempotency; id counter not reset; removed tasks really gone |
+| `CHANGELOG.md` | New at repo root: `Unreleased` entry describing `clear_completed()`, plus prior v0.2.0/v0.1.0 history moved here from the README |
+| `README.md` | Usage section: 3-line `clear_completed()` example; API reference table row; test count updated to 63; changelog section now links to `CHANGELOG.md` |
+| `AGENT_SUMMARY.md` | This file |
 
-Not modified: `tasking/manager.py`, `tasking/__init__.py`, `tests/*` — the
-54-test suite still passes unchanged.
+Not modified: `tasking/__init__.py` (no new exports needed), existing tests
+(`tests/test_manager.py`, `tests/test_manager_extended.py` — the
+backwards-compatibility contract), `docs/USAGE.md`.
 
 ## How to verify
 
 ```bash
-# 1. run the test suite (54 tests; pytest must be installed: pip install pytest)
+# 1. run the full suite (pytest required: pip install pytest)
 python3 -m pytest tests/ -q
+# -> 63 passed in 0.05s
+#    (54 pre-existing + 9 new in tests/test_clear_completed.py)
 
-# 2. spot-check the documented error messages against the code
-python3 -c "
-from tasking import TaskManager, TaskNotFoundError
-m = TaskManager()
-for fn in (lambda: m.add(''), lambda: m.add(123), lambda: m.remove(999)):
-    try: fn()
-    except Exception as e: print(type(e).__name__, e)
-"
+# 2. run only the new focused tests
+python3 -m pytest tests/test_clear_completed.py -q
+# -> 9 passed
 
-# 3. run the README worked example (uses relative dates, works any day)
+# 3. spot-check the documented behavior end-to-end
 python3 -c "
-from datetime import date, timedelta
-from tasking import TaskManager, TaskNotFoundError
+from tasking import TaskManager
 m = TaskManager()
-bug = m.add('Fix login bug', due_date=(date.today()-timedelta(days=3)).isoformat(), tags=['bug','auth'], priority=3)
-feat = m.add('Add dark mode', due_date=(date.today()+timedelta(days=7)).isoformat(), tags=['feature'], priority=1)
-chore = m.add('Write release notes', due_date=(date.today()+timedelta(days=90)).isoformat(), tags=['docs'], priority=2)
-assert [t.title for t in m.pending() if t.is_overdue()] == ['Fix login bug']
-m.complete(bug.id)
-assert [t.title for t in m.search('dark')] == ['Add dark mode']
-assert [t.id for t in m.by_priority(3)] == [bug.id]
-assert m.remove(chore.id).title == 'Write release notes'
-try: m.remove(chore.id)
-except TaskNotFoundError as e: print('caught:', e)
+a = m.add('a'); b = m.add('b'); c = m.add('c')
+m.complete(a.id); m.complete(c.id)
+removed = m.clear_completed()
+assert removed == [a, c] and m.all() == [b]
+assert m.clear_completed() == [] and m.all() == [b]
+assert m.add('d').id == 4
+print('clear_completed OK')
 "
 ```
 
-Latest run: **54 passed**. During this pass every README/USAGE claim was
-additionally verified with a dedicated assertion script covering titles,
-tags, due dates, priorities, search, removal, `to_dict()` and all seven
-documented edge cases — all assertions passed on Python 3.12.
+Latest run: **63 passed** (`python3 -m pytest tests/ -q`), Python 3.12.3,
+pytest 9.1.1. The README's 3-line example was also executed verbatim as a
+script and its assertions passed.
 
 ## Risks, assumptions, follow-ups
 
-- **Assumption — docs only**: the task was documentation quality, so no code
-  changes were made. One latent code issue was *documented* rather than fixed
-  (see next item); fixing it would have changed behavior under test.
-- **Documented code quirk — `datetime.datetime` due dates**:
-  `_validate_due_date` accepts `datetime` objects (they subclass `date`) and
-  stores them unconverted, after which `Task.is_overdue()` raises
-  `TypeError: can't compare datetime.datetime to datetime.date`. The previous
-  summary claimed datetimes were "intentionally rejected" — that was
-  inaccurate. `docs/USAGE.md` now states the real behavior. Follow-up: either
-  reject `datetime` in `_validate_due_date` or normalize it via
-  `due_date.date()`.
-- **Assumption — relative dates in examples**: the worked examples compute
-  due dates from `date.today()` so they stay correct whenever they are run;
-  the README's `to_dict()` comment therefore shows a placeholder rather than
-  a hardcoded date.
-- **Assumption — duplicate-tag case sensitivity**: verified behavior is that
-  `["Work", "work"]` is *accepted* (duplicates are detected after stripping,
-  not case-insensitively). Documented as-is in `docs/USAGE.md`; if
-  case-insensitive dedup is desired, that is a code change to make in a
-  follow-up.
-- **Risk — docs drift**: error-message strings are quoted verbatim in both
-  documents; renaming messages in `tasking/manager.py` would make the docs
-  stale. The verify commands above catch the most common drift.
-- **Risk — packaging**: the README states the package is not pip-installable
-  (no packaging manifest exists). Adding a `pyproject.toml` would let the
-  installation section switch to `pip install .`; left as a follow-up since
-  adding packaging was out of scope.
+- **Assumption — return type**: the task says "returns the list of removed
+  Task objects", so the return value is a plain `list` of `Task` (matching
+  the style of `search()`/`by_priority()`/`pending()`), not a generator or
+  tuple. The annotation is `-> list` for consistency with the rest of the
+  module (which does not use `list[Task]` annotations internally).
+- **Assumption — id counter**: `clear_completed()` does not reset or reuse
+  ids; `_next_id` keeps increasing, mirroring `remove()`. Reusing freed ids
+  would be a breaking change and was not requested.
+- **Assumption — CHANGELOG scope**: the README previously carried the
+  v0.2.0 changelog inline. Since the task asked for a root `CHANGELOG.md`
+  with an `Unreleased` entry, the full history (v0.1.0, v0.2.0) was moved
+  there and the README now links to it, keeping a single source of truth.
+  The README's inline v0.2.0 section was kept as well to avoid breaking
+  anything that links to it.
+- **Risk — docs drift**: the README API table and CHANGELOG describe
+  `clear_completed()`; if its signature or semantics change later, update
+  both (plus `docs/USAGE.md` if extended there).
+- **Risk — `datetime` due-date quirk (pre-existing, unchanged)**:
+  `_validate_due_date` still accepts `datetime.datetime` objects, which makes
+  `is_overdue()` raise `TypeError`. Out of scope for this task; documented in
+  `docs/USAGE.md`; left as a follow-up.
 - **pytest not preinstalled** in the CI environment; `pip install pytest`
   was needed to run the suite (the package itself remains dependency-free).
+- **Not committed**: per the pipeline contract, all changes are left
+  uncommitted in the working tree.
