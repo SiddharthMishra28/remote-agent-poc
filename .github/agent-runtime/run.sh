@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+# run.sh - Orchestrator: install -> ingest -> execute -> publish
+# Platform-agnostic: works in GitLab CI and GitHub Actions.
+#   GitLab env:  CI_PROJECT_DIR, CI_PIPELINE_ID, CI_JOB_TOKEN (unused), GL_AGENT_TOKEN
+#   GitHub env:  GITHUB_WORKSPACE, GITHUB_RUN_ID, GH_TOKEN
+# ---------------------------------------------------------------------------
+set -euo pipefail
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SRC/lib.sh"
+
+OUT_DIR="${WORKSPACE:-$PWD}/agent-out"
+mkdir -p "$OUT_DIR"
+: > "$OUT_DIR/ci.env"
+
+echo "=============================================================="
+echo " Unified Agent Runtime (cicd-hub)"
+echo " backend=${AGENT_TOOL:-copilot}  model=${BYOK_MODEL:-}"
+echo " platform=${HUB_PLATFORM:-auto-detected}"
+echo "=============================================================="
+
+# --- platform auto-detection + platform glue -------------------------------
+detect_platform
+
+# --- BYOK preflight: wait for the inference endpoint to be healthy ---------
+# (free-tier routers have transient 503 windows; the pipeline must not die
+#  because the model backend blipped at trigger time)
+preflight_byok
+
+"$SRC/install-agent.sh"
+"$SRC/ingest.sh"
+
+# --- Execute. Non-zero exit must NOT skip publishing -----------------------
+RC=0
+if ! "$SRC/execute.sh"; then RC=$?; fi
+
+export AGENT_EXIT_CODE="$RC"
+"$SRC/publish.sh" || warn "publish.sh reported a problem"
+
+# --- optional webhook callback to the hub service --------------------------
+if [ -n "${HUB_CALLBACK_URL:-}" ]; then
+  notify_hub "finished" "exit=${RC} branch=${AGENT_RESULT_BRANCH:-none} mr=${AGENT_RESULT_MR_URL:-none}" \
+    || warn "hub callback failed (non-fatal)"
+fi
+
+if [ "$RC" -ne 0 ]; then
+  echo "=============================================================="
+  warn "Agent run finished with exit code ${RC}"
+  echo "=============================================================="
+fi
+exit 0   # artifacts + MR comment carry the real status
