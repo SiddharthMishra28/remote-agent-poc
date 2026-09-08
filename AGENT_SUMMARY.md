@@ -2,100 +2,116 @@
 
 ## What changed and why
 
-The `tasking` package (`tasking/manager.py`) was a deliberately rough task
-manager. It was hardened end-to-end while keeping the public API backwards
-compatible (the pre-existing tests in `tests/test_manager.py` pass unchanged):
+This was a **documentation-quality pass** over the recently hardened
+`tasking` package (v0.2.0). No source code was modified — the goal was to
+read `tasking/manager.py` and `tests/` carefully, then rewrite the docs so
+that every claim matches actual, executed behavior.
 
-1. **Input validation on `add()`**
-   - `title` must be a non-empty, non-whitespace string (`ValueError` with a
-     clear message otherwise; `TypeError` for non-strings). Titles are
-     stripped before storing.
-   - `tags` must be an iterable of non-empty strings with no duplicates
-     (`ValueError` for duplicates/empty tags, `TypeError` for non-strings or
-     a bare string). Tags are stripped and stored as a list. Passing a bare
-     string is rejected because it is a common mistake (`tags="work"`).
-2. **`remove(task_id)`** — removes and returns the task; raises
-   `TaskNotFoundError` for missing ids. `TaskNotFoundError` now carries the
-   offending `task_id` and a clear message.
-3. **Due dates** — `add(title, due_date=None, tags=None, priority=0)` accepts
-   an ISO-8601 `YYYY-MM-DD` string (or a `datetime.date` object) and stores it
-   as a `datetime.date`. Strict `YYYY-MM-DD` format is enforced with a regex
-   before parsing, because Python 3.11+ `date.fromisoformat` also accepts
-   compact forms like `"20260101"` which the spec disallows.
-4. **`search(query)`** — case-insensitive substring search over titles.
-   Empty/whitespace queries match all tasks; non-string queries raise
-   `TypeError`.
-5. **Priority** — `priority` must be an int in 0-3 (`ValueError`/`TypeError`
-   otherwise; `bool` is explicitly rejected since it subclasses `int`).
-   `by_priority(p)` filters tasks and validates its argument the same way.
-6. **Richer `Task` dataclass** — new `due_date` and `priority` fields, plus
-   `is_overdue()` (True iff `due_date < today`; False when no due date) and
-   `to_dict()` (JSON-serializable dict; `tags` is a copy so mutating the dict
-   cannot corrupt the task).
-7. **Backwards compatibility** — `add(title, tags=...)` keyword style, `all()`,
-   `pending()`, `complete()` and both exception import paths
-   (`tasking.TaskNotFoundError` / `tasking.manager.TaskNotFoundError`) are
-   unchanged. `Task` is now also exported from the package root.
-8. **Tests** — `tests/test_manager_extended.py` adds 52 tests covering
-   validation errors, `remove`, `search`, due dates, priorities,
-   `is_overdue`, `to_dict` and edge cases (id continuity after removal,
-   mutable-default isolation, JSON round-trip, full workflow). No existing
-   test was modified.
-9. **README.md** — added a quick-start section documenting the new API,
-   a validation-rules table and how to run the tests. The example was
-   executed verbatim to confirm it works.
+1. **`README.md` — rewritten** as proper project documentation:
+   - Concise intro (what it is: tiny, dependency-free, in-memory).
+   - Installation section, honest about the packaging reality (no
+     `pyproject.toml`/`setup.py`, so the package is imported from the repo
+     root, not pip-installed).
+   - Usage section with a realistic worked example: multiple tasks with due
+     dates, tags and priorities, an overdue check, `complete()`, `search()`,
+     `by_priority()`, `remove()` and the resulting `TaskNotFoundError`.
+   - Full API reference tables for `TaskManager` and `Task`
+     (method / signature / description / raises), plus the `Task` fields and
+     the `TaskNotFoundError` exception.
+   - Error-handling section with exact, verified messages for
+     `TaskNotFoundError`, `ValueError` and `TypeError`.
+   - Development/testing instructions and a changelog section for the
+     v0.2.0 hardening.
+   - Kept under the 150-line repository limit (147 lines).
+2. **`docs/USAGE.md` — new** extended usage guide with edge cases:
+   duplicate tags (including the after-stripping and case-sensitivity
+   nuances), invalid dates (all seven rejected formats, plus type errors),
+   empty/whitespace titles, priorities, search semantics, removal and id
+   continuity, `to_dict()` serialization, and a final "edge cases worth
+   knowing" section (e.g. `is_overdue()` ignores `done`; direct `Task()`
+   construction bypasses validation; `datetime.datetime` due dates are
+   accepted but break `is_overdue()`).
+3. **Verification-first**: every example and every error message in both
+   documents was executed with `python3` before being written down (see
+   "How to verify").
 
 ## Files added/modified
 
 | File | Change |
 |------|--------|
-| `tasking/manager.py` | Rewritten: validation helpers, `remove()`, `search()`, `by_priority()`, due dates, priority, `Task.is_overdue()`, `Task.to_dict()` |
-| `tasking/__init__.py` | Export `Task`; bump `__version__` to 0.2.0 |
-| `tests/test_manager_extended.py` | New — 52 extended tests (existing `tests/test_manager.py` untouched) |
-| `README.md` | Quick-start usage, validation rules, test instructions |
-| `AGENT_SUMMARY.md` | This file |
+| `README.md` | Rewritten: intro, installation, worked example, API reference tables, error handling, dev/testing, v0.2.0 changelog |
+| `docs/USAGE.md` | New: extended examples and edge cases, all verified |
+| `AGENT_SUMMARY.md` | This file (replaces the previous hardening summary; that content is now reflected in the README changelog) |
+
+Not modified: `tasking/manager.py`, `tasking/__init__.py`, `tests/*` — the
+54-test suite still passes unchanged.
 
 ## How to verify
 
 ```bash
-# full suite (the command named in the task)
+# 1. run the test suite (54 tests; pytest must be installed: pip install pytest)
 python3 -m pytest tests/ -q
 
-# with coverage of tasking/ (target was >90%)
-python3 -m pytest tests/ -q --cov=tasking --cov-report=term-missing
+# 2. spot-check the documented error messages against the code
+python3 -c "
+from tasking import TaskManager, TaskNotFoundError
+m = TaskManager()
+for fn in (lambda: m.add(''), lambda: m.add(123), lambda: m.remove(999)):
+    try: fn()
+    except Exception as e: print(type(e).__name__, e)
+"
+
+# 3. run the README worked example (uses relative dates, works any day)
+python3 -c "
+from datetime import date, timedelta
+from tasking import TaskManager, TaskNotFoundError
+m = TaskManager()
+bug = m.add('Fix login bug', due_date=(date.today()-timedelta(days=3)).isoformat(), tags=['bug','auth'], priority=3)
+feat = m.add('Add dark mode', due_date=(date.today()+timedelta(days=7)).isoformat(), tags=['feature'], priority=1)
+chore = m.add('Write release notes', due_date=(date.today()+timedelta(days=90)).isoformat(), tags=['docs'], priority=2)
+assert [t.title for t in m.pending() if t.is_overdue()] == ['Fix login bug']
+m.complete(bug.id)
+assert [t.title for t in m.search('dark')] == ['Add dark mode']
+assert [t.id for t in m.by_priority(3)] == [bug.id]
+assert m.remove(chore.id).title == 'Write release notes'
+try: m.remove(chore.id)
+except TaskNotFoundError as e: print('caught:', e)
+"
 ```
 
-Latest run: **54 passed**, coverage **100%** for `tasking/`
-(`tasking/__init__.py` 100%, `tasking/manager.py` 100%).
-
-Note: `pytest` was not installed in the CI environment; it was installed
-alongside `pytest-cov` to run the suite (`pip install pytest pytest-cov`).
+Latest run: **54 passed**. During this pass every README/USAGE claim was
+additionally verified with a dedicated assertion script covering titles,
+tags, due dates, priorities, search, removal, `to_dict()` and all seven
+documented edge cases — all assertions passed on Python 3.12.
 
 ## Risks, assumptions, follow-ups
 
-- **Assumption — strict `YYYY-MM-DD`**: the spec says ISO-8601
-  `YYYY-MM-DD`, so compact forms like `"20260101"` are rejected even though
-  Python 3.11+ `date.fromisoformat` accepts them. Loosen the regex in
-  `_validate_due_date` if compact input should be allowed.
-- **Assumption — `TypeError` vs `ValueError`**: wrong *types* raise
-  `TypeError`, wrong *values* raise `ValueError`, per Python convention. The
-  spec only mandated `ValueError` for empty titles and bad due-date formats,
-  which is honoured.
-- **Assumption — `due_date` accepts `datetime.date` objects too** (stored
-  as-is); strings remain the documented interface. `datetime.datetime` is
-  intentionally rejected to avoid silent time-of-day loss.
-- **Behaviour change — titles/tags are now stripped** of surrounding
-  whitespace before storing. Callers relying on `"  x  "` being stored verbatim
-  would see a difference; this is the more useful behaviour and matches the
-  "clear message" spirit of the validation requirement.
-- **Behaviour change — `add()` validates eagerly**, so previously-accepted
-  garbage input (empty titles, duplicate tags) now raises. This is the
-  requested hardening.
-- **Not serializable**: `Task` remains a plain dataclass; there is no
-  `from_dict()` / persistence layer. A natural follow-up if round-tripping
-  is needed.
-- **`is_overdue()` ignores `done` state** — a completed task with a past due
-  date still reports overdue. If "overdue" should mean "pending and past due",
-  add `and not self.done` to `is_overdue()`.
-- **No external dependencies added**; the package stays pure-Python as the
-  repository contract requires.
+- **Assumption — docs only**: the task was documentation quality, so no code
+  changes were made. One latent code issue was *documented* rather than fixed
+  (see next item); fixing it would have changed behavior under test.
+- **Documented code quirk — `datetime.datetime` due dates**:
+  `_validate_due_date` accepts `datetime` objects (they subclass `date`) and
+  stores them unconverted, after which `Task.is_overdue()` raises
+  `TypeError: can't compare datetime.datetime to datetime.date`. The previous
+  summary claimed datetimes were "intentionally rejected" — that was
+  inaccurate. `docs/USAGE.md` now states the real behavior. Follow-up: either
+  reject `datetime` in `_validate_due_date` or normalize it via
+  `due_date.date()`.
+- **Assumption — relative dates in examples**: the worked examples compute
+  due dates from `date.today()` so they stay correct whenever they are run;
+  the README's `to_dict()` comment therefore shows a placeholder rather than
+  a hardcoded date.
+- **Assumption — duplicate-tag case sensitivity**: verified behavior is that
+  `["Work", "work"]` is *accepted* (duplicates are detected after stripping,
+  not case-insensitively). Documented as-is in `docs/USAGE.md`; if
+  case-insensitive dedup is desired, that is a code change to make in a
+  follow-up.
+- **Risk — docs drift**: error-message strings are quoted verbatim in both
+  documents; renaming messages in `tasking/manager.py` would make the docs
+  stale. The verify commands above catch the most common drift.
+- **Risk — packaging**: the README states the package is not pip-installable
+  (no packaging manifest exists). Adding a `pyproject.toml` would let the
+  installation section switch to `pip install .`; left as a follow-up since
+  adding packaging was out of scope.
+- **pytest not preinstalled** in the CI environment; `pip install pytest`
+  was needed to run the suite (the package itself remains dependency-free).
