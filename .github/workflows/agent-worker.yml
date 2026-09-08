@@ -13,6 +13,9 @@ jobs:
     timeout-minutes: 120
     env:
       HUB_CALLBACK_URL: ${{ vars.HUB_CALLBACK_URL }}
+      # Full PAT so publish.sh can open PRs + comments even when
+      # the ephemeral GITHUB_TOKEN is restricted by repo policy.
+      GH_TOKEN: ${{ secrets.GH_AGENT_PAT }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,7 +33,7 @@ jobs:
           chmod +x agent/*.sh
           ./agent/run.sh
         env:
-          GH_TOKEN: ${{ secrets.GH_AGENT_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BYOK_BASE_URL: ${{ vars.BYOK_BASE_URL }}
           BYOK_API_KEY: ${{ secrets.BYOK_API_KEY }}
           BYOK_MODEL: ${{ vars.BYOK_MODEL }}
