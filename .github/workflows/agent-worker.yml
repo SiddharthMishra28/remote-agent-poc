@@ -33,7 +33,6 @@ jobs:
           chmod +x agent/*.sh
           ./agent/run.sh
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BYOK_BASE_URL: ${{ vars.BYOK_BASE_URL }}
           BYOK_API_KEY: ${{ secrets.BYOK_API_KEY }}
           BYOK_MODEL: ${{ vars.BYOK_MODEL }}
