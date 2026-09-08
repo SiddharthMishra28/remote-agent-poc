@@ -1,38 +1,37 @@
-            # Unified agent runtime (cicd-hub). One run = one agent task.
-            name: agent-worker
-            on:
-              push:
-                branches: ['agent/cfg-*']
-              workflow_dispatch:
-            permissions:
-              contents: write
-              pull-requests: write
-            jobs:
-              agent-worker:
-                runs-on: ubuntu-latest
-                timeout-minutes: 120
-                env:
-                  HUB_CALLBACK_URL: ${{ vars.HUB_CALLBACK_URL }}
-                steps:
-                  - uses: actions/checkout@v4
-                    with:
-                      fetch-depth: 0
-                  - uses: actions/setup-node@v4
-                    with:
-                      node-version: '22'
-                  - name: Run autonomous agent
-                    run: |
-                      mkdir -p agent
-                      BASE="https://raw.githubusercontent.com/${{ github.repository }}/main/.github/agent-runtime"
-                      for f in run.sh lib.sh install-agent.sh ingest.sh execute.sh publish.sh; do
-                        curl -fsSL "$BASE/$f" -o "agent/$f"
-                      done
-                      chmod +x agent/*.sh
-                      ./agent/run.sh
-                    env:
-                      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                      BYOK_BASE_URL: ${{ vars.BYOK_BASE_URL }}
-                      BYOK_API_KEY: ${{ secrets.BYOK_API_KEY }}
-                      BYOK_MODEL: ${{ vars.BYOK_MODEL }}
-                      BYOK_FALLBACK_MODEL: ${{ vars.BYOK_FALLBACK_MODEL }}
-            
+# Unified agent runtime (cicd-hub). One run = one agent task.
+name: agent-worker
+on:
+  push:
+    branches: ['agent/cfg-*']
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  agent-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      HUB_CALLBACK_URL: ${{ vars.HUB_CALLBACK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run autonomous agent
+        run: |
+          mkdir -p agent
+          BASE="https://raw.githubusercontent.com/${{ github.repository }}/main/.github/agent-runtime"
+          for f in run.sh lib.sh install-agent.sh ingest.sh execute.sh publish.sh; do
+            curl -fsSL "$BASE/$f" -o "agent/$f"
+          done
+          chmod +x agent/*.sh
+          ./agent/run.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BYOK_BASE_URL: ${{ vars.BYOK_BASE_URL }}
+          BYOK_API_KEY: ${{ secrets.BYOK_API_KEY }}
+          BYOK_MODEL: ${{ vars.BYOK_MODEL }}
+          BYOK_FALLBACK_MODEL: ${{ vars.BYOK_FALLBACK_MODEL }}
