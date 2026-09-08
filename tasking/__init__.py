@@ -1,6 +1,6 @@
 """Tasking - a tiny in-memory task manager."""
 
-from .manager import TaskManager, TaskNotFoundError
+from .manager import Task, TaskManager, TaskNotFoundError
 
-__all__ = ["TaskManager", "TaskNotFoundError"]
-__version__ = "0.1.0"
+__all__ = ["TaskManager", "Task", "TaskNotFoundError"]
+__version__ = "0.2.0"
