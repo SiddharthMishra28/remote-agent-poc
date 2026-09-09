@@ -4,6 +4,21 @@ All notable changes to the `tasking` package are documented here.
 
 ## Unreleased
 
+- Added `TaskManager.reschedule(task_id, due_date=None, priority=None)`:
+  updates an existing task's `due_date` and/or `priority` in place and
+  returns the updated `Task`. Only the fields explicitly provided are
+  changed; passing `None` for a field leaves it unchanged. Raises
+  `TaskNotFoundError` for unknown ids and validates inputs with the same
+  rules as `add()` (bad priority raises `ValueError`/`TypeError`, bad
+  `due_date` is parsed like `add()`). Updates are all-or-nothing: if any
+  provided field fails validation, no field is changed.
+- 17 new tests in `tests/test_reschedule.py` covering unknown ids, no-op
+  calls, due-date-only, priority-only and both-at-once updates, validation
+  errors (bad priority value/type, bad date string/type), atomicity on
+  validation failure, isolation from other tasks, and interaction with
+  `stats()`/`is_overdue()` when rescheduling a task out of and into
+  overdue. Existing tests unchanged.
+
 - Added `TaskManager.clear_completed()`: removes every task whose `done`
   status is `True` and returns the removed `Task` objects in insertion
   order. Returns an empty list (and mutates nothing) when no tasks are

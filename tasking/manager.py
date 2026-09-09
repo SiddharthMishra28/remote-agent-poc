@@ -158,6 +158,20 @@ class TaskManager:
         t.done = True
         return t
 
+    def reschedule(self, task_id: int, due_date=None, priority=None) -> Task:
+        """Update a task's due_date and/or priority in place; returns the task."""
+        try:
+            t = self._tasks[task_id]
+        except KeyError:
+            raise TaskNotFoundError(task_id) from None
+        new_due = _validate_due_date(due_date) if due_date is not None else None
+        new_priority = _validate_priority(priority) if priority is not None else None
+        if due_date is not None:
+            t.due_date = new_due
+        if priority is not None:
+            t.priority = new_priority
+        return t
+
     def search(self, query):
         """Case-insensitive substring search over task titles.
 
