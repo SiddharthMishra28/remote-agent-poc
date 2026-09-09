@@ -4,6 +4,15 @@ All notable changes to the `tasking` package are documented here.
 
 ## Unreleased
 
+- Added `TaskManager.complete_all()`: marks every currently-pending task
+  as done in one call and returns the `Task` objects completed by this
+  call, in insertion order. Already-done tasks are not included in the
+  return value; on an empty or all-done manager it returns `[]`.
+- 9 new tests in `tests/test_complete_all.py` covering the empty manager,
+  the all-done manager, a mixed manager (only pending tasks completed and
+  returned, in insertion order), `done` flags afterwards, and `stats()`
+  reflecting the new state. Existing tests unchanged.
+
 - Added `TaskManager.reschedule(task_id, due_date=None, priority=None)`:
   updates an existing task's `due_date` and/or `priority` in place and
   returns the updated `Task`. Only the fields explicitly provided are
