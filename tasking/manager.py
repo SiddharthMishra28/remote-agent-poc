@@ -158,6 +158,10 @@ class TaskManager:
         t.done = True
         return t
 
+    def complete_all(self) -> list:
+        """Mark every pending task done and return the completed tasks in insertion order."""
+        return [self.complete(t.id) for t in self.pending()]
+
     def reschedule(self, task_id: int, due_date=None, priority=None) -> Task:
         """Update a task's due_date and/or priority in place; returns the task."""
         try:
