@@ -27,6 +27,18 @@ All notable changes to the `tasking` package are documented here.
   tasks without tags, combined done+pending counting, and removal.
   Existing tests unchanged.
 
+- Added `TaskManager.due_soon(hours=48)`: returns the list of pending
+  (not done) tasks whose `due_date` is set and falls within the window
+  from today up to and including today + `hours` hours, sorted by
+  `due_date` ascending (soonest first). Overdue tasks (due date strictly
+  before today) and tasks without a due date are excluded. `hours` must
+  be a non-negative number; anything else raises `TypeError`/`ValueError`.
+- 16 new tests in `tests/test_due_soon.py` covering the empty manager,
+  tasks well inside / well beyond the window, the inclusive 48-hour
+  boundary, exclusion of done tasks, tasks without a due date and overdue
+  tasks, soonest-first ordering, custom `hours` windows, and argument
+  validation. Existing tests unchanged.
+
 ## v0.2.0 — hardening
 
 - Input validation on `add()` for title, tags, due_date and priority; titles
