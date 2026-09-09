@@ -50,6 +50,9 @@ m.remove(chore.id)                                # raises TaskNotFoundError
 
 m.stats()                                         # {'total': 2, 'pending': 1, 'completed': 1, 'overdue': 0}
 m.stats()["overdue"]                              # 0 — completed tasks are never counted as overdue
+
+m.add("Tag it", tags=["bug"])                     # another task with the 'bug' tag
+m.tag_counts()                                    # {'bug': 2, 'auth': 1, 'feature': 1} — 'docs' went with the removed task
 ```
 
 `Task` is a dataclass; `t.to_dict()` returns a JSON-serializable view:
@@ -77,6 +80,7 @@ More examples, including edge cases, live in [docs/USAGE.md](docs/USAGE.md).
 | `all` | `() -> list[Task]` | Every task, in insertion order. Returns a copy. | — |
 | `pending` | `() -> list[Task]` | Tasks where `done is False`. | — |
 | `stats` | `() -> dict` | Counts: `total`, `pending`, `completed`, and `overdue` (pending tasks whose `due_date` is strictly before today, via `is_overdue()`). Completed tasks are never counted as overdue. | — |
+| `tag_counts` | `() -> dict` | Each distinct tag across all tasks (done and pending) mapped to the number of tasks carrying it. Tasks without tags are skipped; `{}` when there are no tags. | — |
 
 ### `Task` (dataclass)
 
@@ -130,9 +134,11 @@ except TaskNotFoundError as e:
 python3 -m pytest tests/ -q
 ```
 
-69 tests (2 backwards-compatibility tests in `tests/test_manager.py`, 52
-extended tests in `tests/test_manager_extended.py`, 15 `stats()` tests in
-`tests/test_manager_stats.py`). Requires `pytest`
+93 tests (2 backwards-compatibility tests in `tests/test_manager.py`, 52
+extended tests in `tests/test_manager_extended.py`, 9 `clear_completed()`
+tests in `tests/test_clear_completed.py`, 15 `stats()` tests in
+`tests/test_manager_stats.py`, 15 `tag_counts()` tests in
+`tests/test_manager_tag_counts.py`). Requires `pytest`
 (`pip install pytest`); the package itself needs only the standard library.
 
 ## Changelog

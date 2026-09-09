@@ -201,3 +201,11 @@ class TaskManager:
             "completed": len(self._tasks) - len(pending),
             "overdue": sum(1 for t in pending if t.is_overdue()),
         }
+
+    def tag_counts(self) -> dict:
+        """Map each distinct tag across all tasks (done and pending) to the number of tasks carrying it."""
+        counts: dict = {}
+        for t in self._tasks.values():
+            for tag in t.tags:
+                counts[tag] = counts.get(tag, 0) + 1
+        return counts

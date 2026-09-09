@@ -17,6 +17,16 @@ All notable changes to the `tasking` package are documented here.
   mixed done/pending states, tasks with and without due dates, and the
   boundary where a task due today is not overdue. Existing tests unchanged.
 
+- Added `TaskManager.tag_counts()`: returns a dict mapping each distinct
+  tag across all tasks — done and pending alike — to the number of tasks
+  carrying it. Tags are counted exactly as stored by `add()` (stripped,
+  case preserved); tasks without tags are skipped. Returns `{}` for an
+  empty manager.
+- 15 new tests in `tests/test_manager_tag_counts.py` covering the empty
+  manager, single tag, repeated tags across tasks, multiple distinct tags,
+  tasks without tags, combined done+pending counting, and removal.
+  Existing tests unchanged.
+
 ## v0.2.0 — hardening
 
 - Input validation on `add()` for title, tags, due_date and priority; titles
