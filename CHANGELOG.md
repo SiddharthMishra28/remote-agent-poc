@@ -1,11 +1,21 @@
 # Changelog
 
+All notable changes to the `tasking` package are documented here.
+
 ## Unreleased
 
 - Added `TaskManager.clear_completed()`: removes every task whose `done`
   status is `True` and returns the removed `Task` objects in insertion
   order. Returns an empty list (and mutates nothing) when no tasks are
   completed; pending tasks are left untouched with their ids intact.
+
+- Added `TaskManager.stats()` returning a dict with `total`, `pending`,
+  `completed` and `overdue` counts. `overdue` counts only *pending* tasks
+  whose `due_date` is strictly before today (via `Task.is_overdue()`), so a
+  completed task with a past due date is not reported as overdue.
+- 15 new tests in `tests/test_manager_stats.py` covering the empty manager,
+  mixed done/pending states, tasks with and without due dates, and the
+  boundary where a task due today is not overdue. Existing tests unchanged.
 
 ## v0.2.0 — hardening
 
@@ -20,8 +30,3 @@
 - `Task` gained `due_date`, `priority` and `to_dict()`; exported from the
   package root; `__version__` bumped to `0.2.0`.
 - 52 new tests in `tests/test_manager_extended.py`; existing tests unchanged.
-
-## v0.1.0 — initial release
-
-- `TaskManager` with `add()`, `complete()`, `pending()` and `all()`;
-  `Task` dataclass with `id`, `title` and `done`.

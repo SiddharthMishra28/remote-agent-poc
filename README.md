@@ -48,10 +48,8 @@ m.by_priority(3)                                  # -> [Task(id=1, ...)]
 m.remove(chore.id)                                # remove and return the Task
 m.remove(chore.id)                                # raises TaskNotFoundError
 
-# bulk cleanup: drop every completed task in one call
-removed = m.clear_completed()                     # -> [Task(id=1, ... 'Fix login bug' ...)]
-m.clear_completed()                               # -> [] (nothing completed; nothing touched)
-m.all()                                            # -> [Task(id=2, ...), Task(id=3, ...)]
+m.stats()                                         # {'total': 2, 'pending': 1, 'completed': 1, 'overdue': 0}
+m.stats()["overdue"]                              # 0 — completed tasks are never counted as overdue
 ```
 
 `Task` is a dataclass; `t.to_dict()` returns a JSON-serializable view:
@@ -74,11 +72,11 @@ More examples, including edge cases, live in [docs/USAGE.md](docs/USAGE.md).
 | `add` | `(title, due_date=None, tags=None, priority=0) -> Task` | Validate and store a task; returns it. Title is stripped; tags are stripped, de-duplicated (after stripping) and stored as a `list`; `due_date` is stored as `datetime.date`. | `TypeError` (non-string title/tag/priority, tags as bare string, non-string non-date due_date), `ValueError` (empty title, empty/duplicate tag, bad date, priority outside 0-3) |
 | `remove` | `(task_id) -> Task` | Remove and return the task with `task_id`. | `TaskNotFoundError` |
 | `complete` | `(task_id) -> Task` | Mark the task done and return it. Idempotent — completing twice is fine. | `TaskNotFoundError` |
-| `clear_completed` | `() -> list[Task]` | Remove and return every task with `done is True`, in insertion order. Returns `[]` and mutates nothing when no tasks are completed; pending tasks keep their ids. | — |
 | `search` | `(query) -> list[Task]` | Case-insensitive substring search over titles, in insertion order. Empty/whitespace query matches all tasks. | `TypeError` (non-string query) |
 | `by_priority` | `(p) -> list[Task]` | All tasks at priority `p`, in insertion order. | `TypeError` (non-int), `ValueError` (outside 0-3) |
 | `all` | `() -> list[Task]` | Every task, in insertion order. Returns a copy. | — |
 | `pending` | `() -> list[Task]` | Tasks where `done is False`. | — |
+| `stats` | `() -> dict` | Counts: `total`, `pending`, `completed`, and `overdue` (pending tasks whose `due_date` is strictly before today, via `is_overdue()`). Completed tasks are never counted as overdue. | — |
 
 ### `Task` (dataclass)
 
@@ -132,15 +130,12 @@ except TaskNotFoundError as e:
 python3 -m pytest tests/ -q
 ```
 
-63 tests (2 backwards-compatibility tests in `tests/test_manager.py`, 52
-extended tests in `tests/test_manager_extended.py`, 9 focused tests in
-`tests/test_clear_completed.py`). Requires `pytest`
+69 tests (2 backwards-compatibility tests in `tests/test_manager.py`, 52
+extended tests in `tests/test_manager_extended.py`, 15 `stats()` tests in
+`tests/test_manager_stats.py`). Requires `pytest`
 (`pip install pytest`); the package itself needs only the standard library.
 
 ## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for the full history, including the
-`Unreleased` entry for `clear_completed()`.
 
 ### v0.2.0 — hardening
 

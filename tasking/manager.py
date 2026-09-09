@@ -185,8 +185,19 @@ class TaskManager:
             del self._tasks[t.id]
         return removed
 
+
     def all(self):
         return list(self._tasks.values())
 
     def pending(self):
         return [t for t in self._tasks.values() if not t.done]
+
+    def stats(self) -> dict:
+        """Return counts of tasks: total, pending, completed and overdue."""
+        pending = [t for t in self._tasks.values() if not t.done]
+        return {
+            "total": len(self._tasks),
+            "pending": len(pending),
+            "completed": len(self._tasks) - len(pending),
+            "overdue": sum(1 for t in pending if t.is_overdue()),
+        }
