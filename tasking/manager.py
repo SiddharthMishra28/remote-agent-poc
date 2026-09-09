@@ -10,7 +10,7 @@ Features:
 
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 
@@ -209,3 +209,18 @@ class TaskManager:
             for tag in t.tags:
                 counts[tag] = counts.get(tag, 0) + 1
         return counts
+
+    def due_soon(self, hours: int = 48) -> list:
+        """Return pending tasks whose due_date falls within the next ``hours`` hours, soonest first."""
+        if isinstance(hours, bool) or not isinstance(hours, (int, float)):
+            raise TypeError(f"hours must be a number, got {type(hours).__name__}")
+        if hours < 0:
+            raise ValueError(f"hours must be non-negative, got {hours}")
+        now = date.today()
+        deadline = now + timedelta(hours=hours)
+        tasks = [
+            t
+            for t in self._tasks.values()
+            if not t.done and t.due_date is not None and now <= t.due_date <= deadline
+        ]
+        return sorted(tasks, key=lambda t: t.due_date)
