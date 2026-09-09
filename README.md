@@ -56,6 +56,9 @@ m.tag_counts()                                    # {'bug': 2, 'auth': 1, 'featu
 
 m.add("Deploy hotfix", due_date=(date.today() + timedelta(days=1)).isoformat())
 m.due_soon()                                      # -> [Task(... 'Deploy hotfix' ...)] — pending tasks due within 48h, soonest first
+
+m.reschedule(feat.id, due_date=later, priority=2) # update due_date and priority in place; returns the Task
+m.reschedule(feat.id)                             # no-op (both fields None) — returns the task unchanged
 ```
 
 `Task` is a dataclass; `t.to_dict()` returns a JSON-serializable view:
@@ -78,6 +81,7 @@ More examples, including edge cases, live in [docs/USAGE.md](docs/USAGE.md).
 | `add` | `(title, due_date=None, tags=None, priority=0) -> Task` | Validate and store a task; returns it. Title is stripped; tags are stripped, de-duplicated (after stripping) and stored as a `list`; `due_date` is stored as `datetime.date`. | `TypeError` (non-string title/tag/priority, tags as bare string, non-string non-date due_date), `ValueError` (empty title, empty/duplicate tag, bad date, priority outside 0-3) |
 | `remove` | `(task_id) -> Task` | Remove and return the task with `task_id`. | `TaskNotFoundError` |
 | `complete` | `(task_id) -> Task` | Mark the task done and return it. Idempotent — completing twice is fine. | `TaskNotFoundError` |
+| `reschedule` | `(task_id, due_date=None, priority=None) -> Task` | Update a task's `due_date` and/or `priority` in place and return it. Only provided fields change; `None` leaves a field unchanged. All-or-nothing: if any provided field fails validation, nothing changes. | `TaskNotFoundError`, `TypeError`/`ValueError` (same rules as `add()`) |
 | `search` | `(query) -> list[Task]` | Case-insensitive substring search over titles, in insertion order. Empty/whitespace query matches all tasks. | `TypeError` (non-string query) |
 | `by_priority` | `(p) -> list[Task]` | All tasks at priority `p`, in insertion order. | `TypeError` (non-int), `ValueError` (outside 0-3) |
 | `all` | `() -> list[Task]` | Every task, in insertion order. Returns a copy. | — |
@@ -138,12 +142,13 @@ except TaskNotFoundError as e:
 python3 -m pytest tests/ -q
 ```
 
-109 tests (2 backwards-compatibility tests in `tests/test_manager.py`, 52
+126 tests (2 backwards-compatibility tests in `tests/test_manager.py`, 52
 extended tests in `tests/test_manager_extended.py`, 9 `clear_completed()`
 tests in `tests/test_clear_completed.py`, 15 `stats()` tests in
 `tests/test_manager_stats.py`, 15 `tag_counts()` tests in
 `tests/test_manager_tag_counts.py`, 16 `due_soon()` tests in
-`tests/test_due_soon.py`). Requires `pytest`
+`tests/test_due_soon.py`, 17 `reschedule()` tests in
+`tests/test_reschedule.py`). Requires `pytest`
 (`pip install pytest`); the package itself needs only the standard library.
 
 ## Changelog
