@@ -6,6 +6,7 @@ Features:
 - ISO-8601 (YYYY-MM-DD) due dates with overdue detection
 - Case-insensitive ``search()`` over titles
 - Priority levels 0-3 with ``by_priority()`` filtering
+- ``stats()`` snapshot: total / pending / completed / overdue counts
 """
 
 import re
@@ -179,3 +180,13 @@ class TaskManager:
 
     def pending(self):
         return [t for t in self._tasks.values() if not t.done]
+
+    def stats(self) -> dict:
+        """Return counts of tasks: total, pending, completed and overdue."""
+        pending = [t for t in self._tasks.values() if not t.done]
+        return {
+            "total": len(self._tasks),
+            "pending": len(pending),
+            "completed": len(self._tasks) - len(pending),
+            "overdue": sum(1 for t in pending if t.is_overdue()),
+        }

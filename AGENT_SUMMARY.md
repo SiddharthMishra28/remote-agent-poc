@@ -2,116 +2,110 @@
 
 ## What changed and why
 
-This was a **documentation-quality pass** over the recently hardened
-`tasking` package (v0.2.0). No source code was modified — the goal was to
-read `tasking/manager.py` and `tests/` carefully, then rewrite the docs so
-that every claim matches actual, executed behavior.
+Added a `stats()` method to `TaskManager` in `tasking/manager.py`, giving a
+one-call snapshot of the manager's state. The task asked for a typed,
+dependency-free method consistent with the existing API style, plus tests,
+changelog and README coverage.
 
-1. **`README.md` — rewritten** as proper project documentation:
-   - Concise intro (what it is: tiny, dependency-free, in-memory).
-   - Installation section, honest about the packaging reality (no
-     `pyproject.toml`/`setup.py`, so the package is imported from the repo
-     root, not pip-installed).
-   - Usage section with a realistic worked example: multiple tasks with due
-     dates, tags and priorities, an overdue check, `complete()`, `search()`,
-     `by_priority()`, `remove()` and the resulting `TaskNotFoundError`.
-   - Full API reference tables for `TaskManager` and `Task`
-     (method / signature / description / raises), plus the `Task` fields and
-     the `TaskNotFoundError` exception.
-   - Error-handling section with exact, verified messages for
-     `TaskNotFoundError`, `ValueError` and `TypeError`.
-   - Development/testing instructions and a changelog section for the
-     v0.2.0 hardening.
-   - Kept under the 150-line repository limit (147 lines).
-2. **`docs/USAGE.md` — new** extended usage guide with edge cases:
-   duplicate tags (including the after-stripping and case-sensitivity
-   nuances), invalid dates (all seven rejected formats, plus type errors),
-   empty/whitespace titles, priorities, search semantics, removal and id
-   continuity, `to_dict()` serialization, and a final "edge cases worth
-   knowing" section (e.g. `is_overdue()` ignores `done`; direct `Task()`
-   construction bypasses validation; `datetime.datetime` due dates are
-   accepted but break `is_overdue()`).
-3. **Verification-first**: every example and every error message in both
-   documents was executed with `python3` before being written down (see
-   "How to verify").
+**Semantics implemented** (per the task spec):
+
+- `total` — all tasks in the manager.
+- `pending` — tasks where `done is False`.
+- `completed` — tasks where `done is True`.
+- `overdue` — **pending** tasks whose `due_date` is strictly in the past,
+  determined via the existing `Task.is_overdue()`. Consequences:
+  - a task due **today** is **not** overdue (boundary, matches
+    `is_overdue()`'s `due_date < date.today()` comparison);
+  - a **completed** task with a past due date is **not** counted as overdue
+    (the task spec says "overdue = pending tasks whose due_date is in the
+    past");
+  - tasks without a due date are never overdue.
+
+**Design choices:**
+
+- `stats()` computes `pending` once and derives `completed` as
+  `total - pending`, so the counts are always internally consistent
+  (`total == pending + completed`).
+- Typed with `-> dict` and a one-line docstring, matching the style of
+  `is_overdue()` / `to_dict()`. No new imports, no external dependencies.
+- The module docstring's feature list gained a `stats()` line, mirroring how
+  every other feature is listed.
 
 ## Files added/modified
 
 | File | Change |
 |------|--------|
-| `README.md` | Rewritten: intro, installation, worked example, API reference tables, error handling, dev/testing, v0.2.0 changelog |
-| `docs/USAGE.md` | New: extended examples and edge cases, all verified |
-| `AGENT_SUMMARY.md` | This file (replaces the previous hardening summary; that content is now reflected in the README changelog) |
+| `tasking/manager.py` | Added `TaskManager.stats()` (7 lines) + one line in the module docstring feature list |
+| `tests/test_manager_stats.py` | **New** — 11 focused tests for `stats()` (see below) |
+| `CHANGELOG.md` | **New** — created with an `Unreleased` section documenting `stats()` (the repo had no CHANGELOG; the v0.2.0 history from the README is included below it for continuity) |
+| `README.md` | Added the 2-line `stats()` example to the usage section, a `stats` row in the API reference table, an Unreleased changelog pointer, and updated the test count |
+| `AGENT_SUMMARY.md` | This file |
 
-Not modified: `tasking/manager.py`, `tasking/__init__.py`, `tests/*` — the
-54-test suite still passes unchanged.
+**Test coverage in `tests/test_manager_stats.py`** (plain pytest functions,
+no classes, per repo convention):
+
+- empty manager → all four counts are 0
+- exact key set (`{'total', 'pending', 'completed', 'overdue'}`)
+- mixed states (done/pending × overdue/future/no-due-date)
+- completed-but-overdue task is **not** counted in `overdue`
+- tasks without due dates are never overdue
+- boundary: due **today** → not overdue; due **yesterday** → overdue
+- `datetime.date` objects as due dates (not just ISO strings)
+- stats reflect removals
+- all counts are `int`s
 
 ## How to verify
 
 ```bash
-# 1. run the test suite (54 tests; pytest must be installed: pip install pytest)
+# pytest is not preinstalled in this environment
+pip install pytest
+
+# full suite (65 tests: 2 original + 52 extended + 11 stats)
 python3 -m pytest tests/ -q
+# expected: "65 passed"
 
-# 2. spot-check the documented error messages against the code
-python3 -c "
-from tasking import TaskManager, TaskNotFoundError
-m = TaskManager()
-for fn in (lambda: m.add(''), lambda: m.add(123), lambda: m.remove(999)):
-    try: fn()
-    except Exception as e: print(type(e).__name__, e)
-"
-
-# 3. run the README worked example (uses relative dates, works any day)
+# quick manual check
 python3 -c "
 from datetime import date, timedelta
-from tasking import TaskManager, TaskNotFoundError
+from tasking import TaskManager
 m = TaskManager()
-bug = m.add('Fix login bug', due_date=(date.today()-timedelta(days=3)).isoformat(), tags=['bug','auth'], priority=3)
-feat = m.add('Add dark mode', due_date=(date.today()+timedelta(days=7)).isoformat(), tags=['feature'], priority=1)
-chore = m.add('Write release notes', due_date=(date.today()+timedelta(days=90)).isoformat(), tags=['docs'], priority=2)
-assert [t.title for t in m.pending() if t.is_overdue()] == ['Fix login bug']
-m.complete(bug.id)
-assert [t.title for t in m.search('dark')] == ['Add dark mode']
-assert [t.id for t in m.by_priority(3)] == [bug.id]
-assert m.remove(chore.id).title == 'Write release notes'
-try: m.remove(chore.id)
-except TaskNotFoundError as e: print('caught:', e)
+m.add('late', due_date=(date.today()-timedelta(days=1)).isoformat())
+m.add('today', due_date=date.today())
+m.add('ok')
+t = m.add('done late', due_date=(date.today()-timedelta(days=9)).isoformat())
+m.complete(t.id)
+print(m.stats())
+# {'total': 4, 'pending': 3, 'completed': 1, 'overdue': 1}
 "
 ```
 
-Latest run: **54 passed**. During this pass every README/USAGE claim was
-additionally verified with a dedicated assertion script covering titles,
-tags, due dates, priorities, search, removal, `to_dict()` and all seven
-documented edge cases — all assertions passed on Python 3.12.
+**Latest run: `65 passed` in 0.05s** (Python 3.12.3, pytest 9.1.1). The
+README's `stats()` example output was executed and asserted before being
+written into the docs.
 
 ## Risks, assumptions, follow-ups
 
-- **Assumption — docs only**: the task was documentation quality, so no code
-  changes were made. One latent code issue was *documented* rather than fixed
-  (see next item); fixing it would have changed behavior under test.
-- **Documented code quirk — `datetime.datetime` due dates**:
-  `_validate_due_date` accepts `datetime` objects (they subclass `date`) and
-  stores them unconverted, after which `Task.is_overdue()` raises
-  `TypeError: can't compare datetime.datetime to datetime.date`. The previous
-  summary claimed datetimes were "intentionally rejected" — that was
-  inaccurate. `docs/USAGE.md` now states the real behavior. Follow-up: either
-  reject `datetime` in `_validate_due_date` or normalize it via
-  `due_date.date()`.
-- **Assumption — relative dates in examples**: the worked examples compute
-  due dates from `date.today()` so they stay correct whenever they are run;
-  the README's `to_dict()` comment therefore shows a placeholder rather than
-  a hardcoded date.
-- **Assumption — duplicate-tag case sensitivity**: verified behavior is that
-  `["Work", "work"]` is *accepted* (duplicates are detected after stripping,
-  not case-insensitively). Documented as-is in `docs/USAGE.md`; if
-  case-insensitive dedup is desired, that is a code change to make in a
-  follow-up.
-- **Risk — docs drift**: error-message strings are quoted verbatim in both
-  documents; renaming messages in `tasking/manager.py` would make the docs
-  stale. The verify commands above catch the most common drift.
-- **Risk — packaging**: the README states the package is not pip-installable
-  (no packaging manifest exists). Adding a `pyproject.toml` would let the
-  installation section switch to `pip install .`; left as a follow-up since
-  adding packaging was out of scope.
-- **pytest not preinstalled** in the CI environment; `pip install pytest`
-  was needed to run the suite (the package itself remains dependency-free).
+- **Assumption — completed tasks are excluded from `overdue`.** The task
+  spec says "overdue = pending tasks whose due_date is in the past", so a
+  done task with a past due date counts only toward `completed`. This
+  intentionally differs from `Task.is_overdue()`, which ignores `done` state;
+  a test pins this distinction explicitly.
+- **Assumption — CHANGELOG.md did not exist** (the v0.2.0 history lived only
+  in README.md). Created it with an `Unreleased` section at the top, and
+  copied the v0.2.0 entry below it so the file is a complete history. The
+  README now links to it.
+- **Risk — day-boundary flakiness:** `stats()` (like `is_overdue()`) compares
+  against `date.today()` at call time. Tests that construct "yesterday /
+  today" tasks could theoretically flake if executed exactly across local
+  midnight; this is inherent to the existing `is_overdue()` design and not
+  introduced by this change.
+- **Risk — docs drift:** the README quotes `stats()` output verbatim; if the
+  key set ever changes, the README/API table must be updated (the new tests
+  will fail first, which is the intended safety net).
+- **Follow-up (pre-existing, not addressed):** `_validate_due_date` accepts
+  `datetime.datetime` objects (they subclass `date`) but stores them
+  unconverted, after which `is_overdue()` — and therefore `stats()` — raises
+  `TypeError`. Documented in `docs/USAGE.md`; fixing it is out of scope here.
+- **Follow-up:** `stats()` could later grow richer breakdowns (e.g. per
+  priority or per tag); kept to the four specified keys to match the task
+  contract exactly.

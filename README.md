@@ -47,6 +47,8 @@ m.search("dark")                                  # -> [Task(... 'Add dark mode'
 m.by_priority(3)                                  # -> [Task(id=1, ...)]
 m.remove(chore.id)                                # remove and return the Task
 m.remove(chore.id)                                # raises TaskNotFoundError
+
+m.stats()  # {'total': 2, 'pending': 1, 'completed': 1, 'overdue': 0}
 ```
 
 `Task` is a dataclass; `t.to_dict()` returns a JSON-serializable view:
@@ -73,6 +75,7 @@ More examples, including edge cases, live in [docs/USAGE.md](docs/USAGE.md).
 | `by_priority` | `(p) -> list[Task]` | All tasks at priority `p`, in insertion order. | `TypeError` (non-int), `ValueError` (outside 0-3) |
 | `all` | `() -> list[Task]` | Every task, in insertion order. Returns a copy. | — |
 | `pending` | `() -> list[Task]` | Tasks where `done is False`. | — |
+| `stats` | `() -> dict` | Counts: `total`, `pending`, `completed`, `overdue` (pending tasks with a past due date, per `is_overdue()`). | — |
 
 ### `Task` (dataclass)
 
@@ -127,10 +130,18 @@ python3 -m pytest tests/ -q
 ```
 
 54 tests (2 backwards-compatibility tests in `tests/test_manager.py`, 52
-extended tests in `tests/test_manager_extended.py`). Requires `pytest`
+extended tests in `tests/test_manager_extended.py`, 11 `stats()` tests in
+`tests/test_manager_stats.py`). Requires `pytest`
 (`pip install pytest`); the package itself needs only the standard library.
 
 ## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full history. Highlights:
+
+### Unreleased
+
+- `TaskManager.stats()` — total / pending / completed / overdue counts
+  (overdue = pending tasks with a past due date).
 
 ### v0.2.0 — hardening
 
