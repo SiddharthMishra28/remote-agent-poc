@@ -51,19 +51,41 @@ deliver complete, working results.
 EOF
 fi
 
-# MCP servers -> written where EACH CLI agent looks for them
+# MCP servers -> written where EACH CLI agent looks for them.
+# Input format (hub mcpServersJson, Copilot-style): {"name": {"command": "...", "args": [...]}}
+# or remote: {"name": {"url": "...", "headers": {...}}}
 MCP="$(jq -c '.mcpServers // empty' "$MANIFEST" 2>/dev/null || true)"
 if [ -n "$MCP" ] && [ "$MCP" != "null" ]; then
   MCP_KEYS="$(printf '%s' "$MCP" | jq -r 'keys | join(", ")')"
-  # GitHub Copilot CLI reads .copilot/mcp.json
+  # GitHub Copilot CLI reads .copilot/mcp.json (native format - passthrough)
   mkdir -p "$WORKSPACE/.copilot" "$HOME/.copilot" 2>/dev/null || true
   printf '%s\n' "$MCP" > "$WORKSPACE/.copilot/mcp.json" 2>/dev/null || true
-  # OpenCode reads MCP servers from its config file (mcp key) - merge with
-  # the BYOK config written by install-agent.sh so both coexist.
+  # OpenCode reads mcp from its config, but needs ITS OWN schema:
+  #   local:  {"type":"local","command":[cmd, ...args],"enabled":true}
+  #   remote: {"type":"remote","url":...,"enabled":true}
+  # Transform the Copilot-style entries and merge into opencode.json.
   if [ -f "${HOME}/.config/opencode/opencode.json" ]; then
-    jq --argjson mcp "$MCP" '.mcp = $mcp' \
-      "$HOME/.config/opencode/opencode.json" > "$HOME/.config/opencode/opencode.json.tmp" \
-      && mv "$HOME/.config/opencode/opencode.json.tmp" "$HOME/.config/opencode/opencode.json"
+    if jq --argjson mcp "$MCP" '
+        .mcp = ($mcp | with_entries(
+          .value = (if (.value.url? // null) then
+              {type: "remote", url: .value.url, enabled: true}
+              + (if .value.headers then {headers: .value.headers} else {} end)
+            else
+              {type: "local",
+               command: ([.value.command] + (.value.args // [])),
+               enabled: true}
+              + (if (.value.env // .value.environment)
+                 then {environment: (.value.env // .value.environment)} else {} end)
+            end)))' \
+        "$HOME/.config/opencode/opencode.json" > "$HOME/.config/opencode/opencode.json.tmp" \
+        && [ -s "$HOME/.config/opencode/opencode.json.tmp" ]; then
+      mv "$HOME/.config/opencode/opencode.json.tmp" "$HOME/.config/opencode/opencode.json"
+      ok "MCP servers adapted to OpenCode schema"
+    else
+      rm -f "$HOME/.config/opencode/opencode.json.tmp"
+      # invalid entry would kill opencode at startup - keep config clean
+      warn "MCP->OpenCode transform failed; leaving opencode config unchanged"
+    fi
   fi
   ok "MCP servers configured: ${MCP_KEYS}"
 fi
