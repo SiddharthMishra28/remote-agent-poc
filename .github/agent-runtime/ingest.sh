@@ -51,12 +51,20 @@ deliver complete, working results.
 EOF
 fi
 
-# MCP servers -> written where the CLI agents look for them
+# MCP servers -> written where EACH CLI agent looks for them
 MCP="$(jq -c '.mcpServers // empty' "$MANIFEST" 2>/dev/null || true)"
 if [ -n "$MCP" ] && [ "$MCP" != "null" ]; then
+  MCP_KEYS="$(printf '%s' "$MCP" | jq -r 'keys | join(", ")')"
+  # GitHub Copilot CLI reads .copilot/mcp.json
   mkdir -p "$WORKSPACE/.copilot" "$HOME/.copilot" 2>/dev/null || true
   printf '%s\n' "$MCP" > "$WORKSPACE/.copilot/mcp.json" 2>/dev/null || true
-  MCP_KEYS="$(printf '%s' "$MCP" | jq -r 'keys | join(", ")')"
+  # OpenCode reads MCP servers from its config file (mcp key) - merge with
+  # the BYOK config written by install-agent.sh so both coexist.
+  if [ -f "${HOME}/.config/opencode/opencode.json" ]; then
+    jq --argjson mcp "$MCP" '.mcp = $mcp' \
+      "$HOME/.config/opencode/opencode.json" > "$HOME/.config/opencode/opencode.json.tmp" \
+      && mv "$HOME/.config/opencode/opencode.json.tmp" "$HOME/.config/opencode/opencode.json"
+  fi
   ok "MCP servers configured: ${MCP_KEYS}"
 fi
 
