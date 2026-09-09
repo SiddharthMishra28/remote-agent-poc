@@ -60,8 +60,11 @@ case "$TOOL" in
       -p "$PROMPT_TEXT" < /dev/null >> "$LOG" 2>&1 || RC=$?
     ;;
   opencode)
-    timeout "$TIMEOUT" opencode --non-interactive --continue \
-      run "$PROMPT_TEXT" >> "$LOG" 2>&1 || RC=$?
+    # opencode run = non-interactive by design. --auto = auto-approve
+    # (YOLO equivalent). Model comes from opencode.json (byok/<model>).
+    timeout "$TIMEOUT" opencode run --auto \
+      --model "byok/${BYOK_ACTIVE_MODEL:-${BYOK_MODEL:-glm-5.3-free}}" \
+      "$PROMPT_TEXT" >> "$LOG" 2>&1 || RC=$?
     ;;
   *) die "Unknown AGENT_TOOL '$TOOL'" ;;
 esac
