@@ -22,6 +22,23 @@ echo "=============================================================="
 # --- platform auto-detection + platform glue -------------------------------
 detect_platform
 
+# --- peek agentTool from the manifest BEFORE install -----------------------
+# GitHub Actions env is static (no per-run variables): the manifest is the
+# only carrier of the requested backend. GitLab pipeline vars take precedence
+# when present (they carry the same value).
+REF="${CI_COMMIT_REF_NAME:-${GITHUB_REF_NAME:-main}}"
+if MANIFEST_PEEK="$(raw "${HUB_PROJECT_ID}" "agent-run/manifest.json" "$REF" 2>/dev/null)" \
+   && [ -n "$MANIFEST_PEEK" ]; then
+  TOOL_PEEK="$(printf '%s' "$MANIFEST_PEEK" | jq -r '.agentTool // empty' 2>/dev/null || true)"
+  if [ -n "${AGENT_TOOL:-}" ]; then
+    log "agent backend: ${AGENT_TOOL} (pipeline variable; manifest says '${TOOL_PEEK:-?}')"
+  elif [ -n "$TOOL_PEEK" ]; then
+    export AGENT_TOOL="$TOOL_PEEK"
+    log "agent backend: ${AGENT_TOOL} (from manifest)"
+  fi
+  unset MANIFEST_PEEK TOOL_PEEK
+fi
+
 # --- BYOK preflight: wait for the inference endpoint to be healthy ---------
 # (free-tier routers have transient 503 windows; the pipeline must not die
 #  because the model backend blipped at trigger time)
