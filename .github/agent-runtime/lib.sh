@@ -144,10 +144,12 @@ preflight_byok() {
   [ -n "$base" ] && [ -n "$key" ] || { warn "BYOK env incomplete - skipping preflight"; return 0; }
 
   local attempt=0 max="${PREFLIGHT_MAX_WAIT_SECONDS:-900}" started
+  local probe_out
+  probe_out="$(mktemp)"        # portable (no hardcoded /tmp on Windows hosts)
   started=$(date +%s)
 
   probe() {  # probe <model> -> 0 healthy
-    curl -sS -m 60 -o /tmp/probe.json -w '%{http_code}' \
+    curl -sS -m 60 -o "$probe_out" -w '%{http_code}' \
       -X POST "$base/chat/completions" \
       -H "Authorization: Bearer $key" -H 'Content-Type: application/json' \
       -d "{\"model\":\"$1\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply OK\"}],\"max_tokens\":10}" \
