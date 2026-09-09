@@ -46,7 +46,7 @@ require_token() {
       [ -n "${GL_AGENT_TOKEN:-}" ] || die "GL_AGENT_TOKEN missing"
       ;;
     GITHUB)
-      [ -n "${GH_TOKEN:-}" ] || die "GH_TOKEN missing"
+      [ -n "${GH_TOKEN:-}" ] || [ -n "${AGENT_GH_PAT:-}" ] || die "GH_TOKEN/AGENT_GH_PAT missing"
       ;;
     *) : ;;
   esac
@@ -55,11 +55,14 @@ require_token() {
 # api <METHOD> <path> [curl args...] -> body on stdout
 api() {
   local method="$1" path="$2"; shift 2
-  local body code auth=()
+  local body code auth=() tok
   case "${HUB_PLATFORM:-}" in
     GITLAB)  auth=(-H "PRIVATE-TOKEN: ${GL_AGENT_TOKEN}")
              base="https://gitlab.com/api/v4" ;;
-    GITHUB)  auth=(-H "Authorization: Bearer ${GH_TOKEN}"
+    GITHUB)  # Publish operations need a PAT; ephemeral GH_TOKEN may be
+             # policy-blocked from PR creation. AGENT_GH_PAT wins when set.
+             tok="${AGENT_GH_PAT:-${GH_TOKEN:-}}"
+             auth=(-H "Authorization: Bearer ${tok}"
                   -H "Accept: application/vnd.github+json")
              base="https://api.github.com" ;;
     *)       die "api() called before detect_platform" ;;
@@ -115,10 +118,11 @@ repo_url() {
 
 # Push-authenticated clone URL (token injected for git only)
 auth_url() {
-  local url="$1"
+  local url="$1" tok
   case "${HUB_PLATFORM:-}" in
     GITLAB)  printf '%s' "$url" | sed -E "s#^https://#https://oauth2:${GL_AGENT_TOKEN}@#" ;;
-    GITHUB)  printf '%s' "$url" | sed -E "s#^https://#https://x-access-token:${GH_TOKEN}@#" ;;
+    GITHUB)  tok="${AGENT_GH_PAT:-${GH_TOKEN:-}}"
+             printf '%s' "$url" | sed -E "s#^https://#https://x-access-token:${tok}@#" ;;
     *)       printf '%s' "$url" ;;
   esac
 }
