@@ -174,6 +174,18 @@ class TaskManager:
         p = _validate_priority(p)
         return [t for t in self._tasks.values() if t.priority == p]
 
+    def clear_completed(self) -> list:
+        """Remove and return every completed task, in insertion order.
+
+        Pending tasks are untouched; returns [] (and mutates nothing)
+        when no task is completed.
+        """
+        removed = [t for t in self._tasks.values() if t.done]
+        for t in removed:
+            del self._tasks[t.id]
+        return removed
+
+
     def all(self):
         return list(self._tasks.values())
 

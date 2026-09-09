@@ -4,6 +4,11 @@ All notable changes to the `tasking` package are documented here.
 
 ## Unreleased
 
+- Added `TaskManager.clear_completed()`: removes every task whose `done`
+  status is `True` and returns the removed `Task` objects in insertion
+  order. Returns an empty list (and mutates nothing) when no tasks are
+  completed; pending tasks are left untouched with their ids intact.
+
 - Added `TaskManager.stats()` returning a dict with `total`, `pending`,
   `completed` and `overdue` counts. `overdue` counts only *pending* tasks
   whose `due_date` is strictly before today (via `Task.is_overdue()`), so a
